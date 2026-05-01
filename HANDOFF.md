@@ -20,6 +20,7 @@
 - `Theme.CedarStarAndroid` 应在 `res/values/themes.xml` 创建，父主题 `Theme.Material3.DayNight.NoActionBar`，深色模式版在 `values-night/themes.xml`。
 - 应用图标设计稿已确定（极简卡通三角色：女孩 + 黑狗 + 白猫），原图保存为 `cedarstar_icon_source.png`，待通过 Android Studio Image Asset Studio 接入。
 - 当前阻塞：Image Asset Studio 入口在 Android Studio 中不显示，正在排查（疑似 Gradle sync 未成功导致项目未识别为 Android module）。
+- 完成功能模块映射表（ARCHITECTURE.md），所有 T1-T4 功能已归属到 Chat / Journal / Companion / Clio / 顶栏 / 抽屉 / Dashboard / 全局后台能力 八大模块。
 
 ## 硬编码占位值
 
@@ -55,3 +56,22 @@
 - 使用 mock 或真实 SSE 事件验证抽屉连接指示器刷新。
 - 验证 Dashboard 弹层路由与返回行为。
 - 在设备上验证 Tab 切换行为。
+
+## 待研究功能（产品决策未定）
+
+以下功能的 UI 模块归属取决于产品决策或技术调研结果，当前不实现：
+
+### 让小克自主玩社交平台（X / Twitter 等）
+
+- 实现路径未定：浏览器自动化 / 系统无障碍服务 / 平台官方 API，三种方案 UI 入口完全不同
+  - 浏览器自动化 → 独立页面或新 Tab
+  - 系统无障碍 → 后台运行 + 开关页（归 Clio）
+  - 平台 API → 内容流接入 Companion Tab
+- 需先调研技术可行性再决定 UI 模块归属
+
+### AI 生成图相册
+
+- 存储已确定：复用 Cloudflare R2（杉杉数据库备份用 bucket）
+- 待决定：是否新开独立 bucket、CDN 域名、元数据 schema、存储范围（仅小克生成图 / 加 Chat 互发图 / 加共玩截图）
+- UI 暂定：Journal Tab 下的"小克的相册"子页（瀑布流或时间轴）
+- 实现暂缓，等产品细节确定
