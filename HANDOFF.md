@@ -1,46 +1,57 @@
-# Handoff Notes
+# 交接说明
 
-This file lists everything intentionally left for later implementation or backend integration.
+本文列出当前阶段刻意留到后续实现或后端集成的内容。
 
-## Empty or placeholder implementations
+## 空实现或占位实现
 
-- `core/sse/SseClient.kt` is a structural stub and does not yet maintain a real SSE connection.
-- `data/repository/StatusRepositoryImpl.kt` is a placeholder for future SSE-backed status updates.
-- `data/repository/ChatRepositoryImpl.kt` is a placeholder for future REST-backed chat history and send-message calls.
-- `data/repository/ConnectionRepositoryMock.kt` currently holds static sample platform states.
-- `data/repository/StatusRepositoryMock.kt` still needs a timed update loop if richer mock animation is desired.
+- `core/sse/SseClient.kt` 目前是结构性占位，尚未维护真实 SSE 连接。
+- `data/repository/StatusRepositoryImpl.kt` 是未来基于 SSE 的状态更新占位。
+- `data/repository/ChatRepositoryImpl.kt` 是未来基于 REST 的历史消息与发送接口占位。
+- `data/repository/ConnectionRepositoryMock.kt` 当前仅包含静态示例平台状态。
+- `data/repository/StatusRepositoryMock.kt` 若需更丰富动画验证，仍需加入定时更新循环。
+- `ui/components/DramaModeOverlay.kt` 仅为蒙层骨架，真实换皮逻辑（顶栏色调、输入框装饰等）待补。
 
-## Hardcoded placeholder values
+## 今日进度补丁（2026-05-01）
 
-- Token provider returns a hardcoded mock token.
-- API base URL is still a placeholder host.
-- `DashboardOverviewDto` contains placeholder text.
-- Mock chat history contains fixed sample messages.
-- Placeholder screen content is used in all four tab screens and dashboard.
+- Android SDK 已本地安装。
+- `local.properties` 已配置（不入库）。
+- Gradle 配置验证通过（含阿里云镜像兜底）。
+- 当前编译失败原因：缺资源文件 `mipmap/ic_launcher` 和 `style/Theme.CedarStarAndroid`。
+- `Theme.CedarStarAndroid` 应在 `res/values/themes.xml` 创建，父主题 `Theme.Material3.DayNight.NoActionBar`，深色模式版在 `values-night/themes.xml`。
+- 应用图标设计稿已确定（极简卡通三角色：女孩 + 黑狗 + 白猫），原图保存为 `cedarstar_icon_source.png`，待通过 Android Studio Image Asset Studio 接入。
+- 当前阻塞：Image Asset Studio 入口在 Android Studio 中不显示，正在排查（疑似 Gradle sync 未成功导致项目未识别为 Android module）。
 
-## Features intentionally not implemented yet
+## 硬编码占位值
 
-- Real REST request handling for history, send message, and dashboard overview.
-- Real SSE connection management, reconnection strategy, and parsing loop.
-- Full tab content UI for chat, journal, companion, and Clio pages.
-- Final dashboard UI and routing behavior beyond the placeholder destination.
-- Real token persistence or authentication storage.
-- Any production backend integration.
-- Any persistence layer for local data.
+- Token Provider 目前返回硬编码 mock token。
+- API Base URL 仍是占位地址。
+- `DashboardOverviewDto` 含占位文本。
+- Mock 聊天历史为固定示例消息。
+- 四个 Tab 页面与 Dashboard 目前均使用占位内容。
 
-## Future backend integration TODOs
+## 当前刻意未实现的能力
 
-- Replace Mock repository bindings in `core/di/RepositoryModule.kt` with Impl bindings when backend is ready.
-- Wire `StatusRepositoryImpl` to consume SSE events and expose them as `StateFlow<AppStatus>`.
-- Wire `ChatRepositoryImpl` to `CedarStarApi` for send/history endpoints.
-- Expand `ConnectionRepositoryImpl` when real platform connection data becomes available.
-- Add real SSE event-source lifecycle management and retry behavior.
-- Replace hardcoded token provider with real storage-backed provider.
+- 历史消息、发送消息、仪表盘总览的真实 REST 请求处理。
+- 真实 SSE 连接管理、重连策略与解析循环。
+- Chat、Journal、Companion、Clio 页面的完整内容 UI。
+- 超出占位路由之外的最终 Dashboard UI 与路由行为。
+- 真实 Token 持久化或鉴权存储。
+- 任何生产级后端集成。
+- 任何本地数据持久化层。
 
-## Validation work left for later
+## 后续后端集成 TODO
 
-- Run a real Android build after Android SDK is installed locally.
-- Verify top-bar animation timing on device/emulator.
-- Verify drawer indicator updates with mock or live SSE events.
-- Verify dashboard modal routing and back behavior.
-- Verify tab switching behavior on device.
+- 后端就绪后，将 `core/di/RepositoryModule.kt` 中的 Mock 绑定替换为 Impl 绑定。
+- 将 `StatusRepositoryImpl` 接入 SSE 事件消费，并以 `StateFlow<AppStatus>` 对外暴露。
+- 将 `ChatRepositoryImpl` 接入 `CedarStarApi` 的发送/历史接口。
+- 真实平台连接数据可用后，扩展 `ConnectionRepositoryImpl`。
+- 增加真实 SSE event-source 生命周期管理与重试策略。
+- 将硬编码 Token Provider 替换为基于存储的真实 Provider。
+
+## 后续需要补做的验证
+
+- 本机安装 Android SDK 后，执行一次真实 Android 构建。
+- 在真机/模拟器上验证顶部栏动画时序。
+- 使用 mock 或真实 SSE 事件验证抽屉连接指示器刷新。
+- 验证 Dashboard 弹层路由与返回行为。
+- 在设备上验证 Tab 切换行为。

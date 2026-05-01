@@ -1,0 +1,10 @@
+<resources>
+    <style name="Theme.CedarStarAndroid" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowBackground">@color/cedar_background</item>
+        <item name="android:colorAccent">@color/cedar_primary</item>
+        <item name="android:navigationBarColor">@color/cedar_background</item>
+        <item name="android:statusBarColor">@color/cedar_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

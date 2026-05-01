@@ -1,124 +1,185 @@
-# CedarStar Android Architecture
+# CedarStar Android 架构说明
 
-This document explains the design intent of the current project skeleton. The emphasis is on why the architecture is arranged this way, not just what exists.
+本文解释当前项目骨架的设计意图。重点不是“有哪些内容”，而是“为什么要这样设计架构”。
 
-## Data flow
+## 数据流
 
 ```text
 SSE / REST  ->  Repository  ->  StateFlow  ->  ViewModel  ->  Composable
      ^                                         |
      |                                         |
-     +---------------- user actions -----------+
+     +---------------- 用户操作 ----------------+
 ```
 
-### Why this flow exists
+### 为什么采用这个流向
 
-The project keeps all state changes moving in one direction so that UI remains predictable.
+项目要求所有状态变更沿单一方向流动，以保证 UI 行为可预测。
 
-- `Repository` is the only layer that knows about network or SSE details.
-- `ViewModel` converts repository state into UI state.
-- `Composable` only observes state and emits user intents upward.
+- `Repository` 是唯一了解网络或 SSE 细节的层。
+- `ViewModel` 将仓库状态转换为 UI 状态。
+- `Composable` 仅观察状态并向上抛出用户意图。
 
-This separation matters because it prevents UI components from becoming hidden sources of business logic. It also keeps network and SSE side effects out of the composition layer, which is important for stability and testability.
+这种分层很重要，因为它能防止 UI 组件暗中演变为业务逻辑来源。同时，它也把网络和 SSE 的副作用隔离在组合层之外，这对稳定性与可测试性都很关键。
 
-## Shared ViewModel scope
+## 共享 ViewModel 作用域
 
-`MainViewModel` is intended to be activity-scoped so all four tabs read the same shared state.
+`MainViewModel` 设计为 activity 级作用域，使四个 Tab 读取同一份共享状态。
 
-### Why this is designed that way
+### 为什么要这样设计
 
-The top bar, drawer indicators, and dashboard entry all depend on one consistent source of truth. If every tab owned its own `MainViewModel`, then each screen could drift into a different state snapshot and the top bar would no longer represent the app globally.
+顶部状态栏、抽屉指示器和仪表盘入口都依赖统一的单一真相源。如果每个 Tab 都拥有自己的 `MainViewModel`，各页面会逐渐漂移到不同状态快照，顶部栏也无法再代表全局应用状态。
 
-Using one shared ViewModel instance gives the app:
+使用一个共享 ViewModel 实例可带来：
 
-- a single source of truth for app-wide status
-- consistent top-bar values across tab switches
-- drawer indicators that reflect the same repository state as the current page
-- a clean place to combine multiple repository flows
+- 全局应用状态只有一个真相源
+- 跨 Tab 切换时顶部栏数值保持一致
+- 抽屉指示器与当前页读取同一仓库状态
+- 有清晰位置可聚合多个仓库流
 
-This also supports the architectural rule that tab switching should not recreate global state.
+这也符合一条架构规则：切换 Tab 不应重建全局状态。
 
-## Top bar non-recomposition principle
+## 导航与四个 Tab
 
-The top bar is placed in the `Scaffold.topBar` slot and reads only the shared state it needs.
+应用主导航采用底部 4 Tab：消息（Chat）/ 共记（Journal）/ 共玩（Companion）/ 小克（Clio）。
 
-### Why this reduces visual churn
+- “消息”承载多会话、引用、撤回联动等核心 IM 功能。
+- “共记”承载日记互评、周记、目标备忘录、零花钱账本、经期、情绪分析等纵向积累内容。
+- “共玩”承载共读、一起听歌、看电影、XHS、B 站解析等同步消费内容。
+- “小克”是人设切换 + 状态栏配置 + 设置 + 平台连接合并页（“打理我的搭子”心智）。
 
-If the top bar were nested inside each tab screen, switching tabs would cause it to be recreated unnecessarily. By keeping it outside the content area, the top bar remains structurally stable while only the body content changes.
+主导航采用 IM 范式而非桌面方块，是为了让消息一跳直达，体现陪伴产品对会话流的优先级。
 
-The animated pieces inside the top bar use local animation primitives:
+## 顶栏“非整体重组”原则
 
-- `AnimatedNumber` for money transitions
-- `AnimatedEmotionIcon` for emotion changes
+顶栏作为常驻顶部薄条显示三个全局状态：零花钱余额（数字滚动动画）、情绪 emoji（淡入淡出）、当前模式（如 `work_guard` / `drama` 等）。
 
-This means the number and emoji animate smoothly without forcing the rest of the shell to redraw.
+这三个字段是 CedarStar 区别于普通 IM 的核心视觉锚点，存在感可类比 iOS 灵动岛。
 
-## Drawer local refresh behavior
+顶栏放在 `Scaffold.topBar` 槽位中，只读取它所需的共享状态。
 
-The drawer is designed so that each platform indicator observes only the slice of state it needs.
+### 为什么这能减少视觉抖动
 
-### Why this is important
+如果把顶栏嵌入每个 Tab 页面中，切换 Tab 会导致顶栏被不必要地反复重建。把它置于内容区之外后，只有主体内容变化，顶栏结构保持稳定。
 
-A naive implementation would observe the full `connections` list at the drawer level and rebuild the whole drawer whenever any platform changes. That is acceptable for tiny apps but not for this architecture, where the goal is local refresh and predictable recomposition boundaries.
+顶栏内部的动画片段使用局部动画原语：
 
-By isolating each `ConnectionIndicator`, only the corresponding indicator recomposes when that platform changes. That keeps the rest of the drawer stable.
+- `AnimatedNumber`：金额数字过渡
+- `AnimatedEmotionIcon`：情绪图标变化
 
-## Mock -> Impl switching
+这样数字和表情可以平滑动画，而不会迫使整个外壳重绘。
 
-Repository binding is centralized in Hilt modules.
+## 抽屉局部刷新行为
 
-### Why the switch is done at the DI layer
+左抽屉承载三类“上下文切换”操作：当前会话快切（顶部）、人设快切（中部）、平台连接指示灯（底部，含 TG / 微信 / QQ 等）。
 
-Swapping behavior in DI allows the UI and ViewModels to remain unchanged while repository behavior changes underneath.
+这些操作本质是切换上下文而非主流程动作，因此放在抽屉而不是底部 Tab。
 
-This gives three benefits:
+抽屉的设计目标是让每个平台指示器只观察自己需要的状态切片。
 
-- no UI code needs to know whether data is real or mocked
-- the swap happens in one place instead of being scattered across screens
-- future backend integration can be introduced without refactoring Composables
+### 为什么这很重要
 
-In the current setup, `RepositoryModule` binds Mock repositories by default. Later, the same module can be changed to bind Impl repositories without affecting the presentation layer.
+一种简单但粗糙的实现，是在抽屉层观察完整 `connections` 列表，并在任意平台变化时重建整个抽屉。对很小的应用这也许可行，但不符合本架构强调的“局部刷新 + 可预测重组边界”。
 
-## SSE architecture
+通过隔离每个 `ConnectionIndicator`，只有对应指示器在该平台变化时重组，抽屉其余部分保持稳定。
 
-`SseClient` is intentionally kept as a transport-only layer.
+## Dashboard 入口与定位
 
-### Why SSE must not touch UI directly
+Dashboard 是宫格仪表盘，承载“伪装成手机 app 的方块分类”美学。
 
-SSE events are asynchronous and can arrive at any time. If a callback writes directly into UI objects, the app becomes vulnerable to threading issues and lifecycle leaks.
+- 入口位于顶部 AppBar 右侧九宫格图标（不放底部 FAB，避免和“新建会话”语义冲突）。
+- 作为独立 destination 以 modal 方式弹出，不挤占底部 Tab。
+- 它承担门面与总览角色，但不强迫所有交互都从这里进入。
 
-Instead, SSE should:
+## Mock -> Impl 切换
 
-1. receive a raw event
-2. parse it into a typed event
-3. update repository state
-4. expose that state through `StateFlow`
-5. let ViewModels and Composables observe the flow
+仓库绑定集中在 Hilt 模块中完成。
 
-This keeps event handling safe, testable, and consistent with the rest of the unidirectional data flow.
+### 为什么在 DI 层做切换
 
-## Architecture red lines
+在 DI 层切换实现，可以在不改 UI 与 ViewModel 的前提下替换底层仓库行为。
 
-The following are forbidden by design:
+这样有三个收益：
 
-- Do not instantiate repositories directly inside `Composable` functions.
-- Do not use `LiveData`; use `StateFlow` / `SharedFlow` instead.
-- Do not mutate UI state directly from SSE callbacks, network callbacks, or broadcast receivers.
-- Do not add multiple module copies for the same responsibility.
-- Do not let tab screens own separate copies of app-wide state.
-- Do not implement business logic inside Compose screens.
-- Do not use XML layouts for UI screens.
-- Do not use Java for this app layer.
-- Do not create container-level refresh behavior that causes the entire shell to redraw on one small state change.
+- UI 无需关心数据是真实还是 Mock
+- 切换点集中在一个位置，不会分散到各页面
+- 未来接入后端时无需重构 Composable
 
-## Why the current structure is intentionally minimal
+当前配置里，`RepositoryModule` 默认绑定 Mock 仓库。后续只需把同一模块改为绑定 Impl 仓库，即可不影响展示层。
 
-This repository is a skeleton, not a finished product. The goal is to establish:
+## SSE 架构
 
-- one Activity
-- one shared app shell
-- one global state hub
-- one repository contract per domain
-- one clear place for future REST and SSE integration
+`SseClient` 被刻意保持为“仅传输层”。
 
-A minimal skeleton is easier to audit and much harder to accidentally violate than a prematurely elaborate implementation.
+### 为什么 SSE 不能直接触达 UI
+
+SSE 事件是异步的，且可在任意时刻到达。如果回调直接写入 UI 对象，应用容易出现线程问题和生命周期泄漏。
+
+正确方式应为：
+
+1. 接收原始事件
+2. 解析为强类型事件
+3. 更新仓库状态
+4. 通过 `StateFlow` 暴露状态
+5. 让 ViewModel 与 Composable 观察该流
+
+这样事件处理更安全、可测试，并与整体单向数据流保持一致。
+
+## 剧情模式蒙层
+
+`DramaModeOverlay` 是全局蒙层组件，位于 `MainScreen` 最外层 `Box`。
+
+- 当 `appStatus.currentMode == "drama"` 时触发整体换皮（如顶栏色调、输入框装饰等）。
+- 设计为蒙层而非独立页面，是为了避免进出剧情时跳页打断沉浸感。
+- 当前为预留空壳，先跟随 state 显隐即可，完整换皮逻辑后续补齐。
+
+## 鉴权机制
+
+所有 REST 请求和 SSE 连接都通过 `AuthInterceptor` 注入 `X-Cedarstar-Token` header。
+
+- 当前 `TokenProvider` 返回 hardcode 占位 token，保留接口供后续接入真实存储。
+- 缺失该 header 的请求会被后端以 401 拦截。
+
+## 数据契约（SSE 事件与 REST 端点）
+
+SSE 端点：
+
+- `GET /api/stream`
+
+SSE 事件类型：
+
+- `status_update`: `{pocketMoney, emotion, currentMode}`
+- `connection_update`: `{platform, status}`
+- `chat_msg`: `{msgId, content, timestamp}`
+
+REST 端点：
+
+- `POST /api/message/send`
+- `GET /api/history?limit=&before=`
+- `GET /api/dashboard/memory-overview`
+
+## 架构红线
+
+以下行为按设计禁止：
+
+- 不要在 `Composable` 函数内直接实例化仓库。
+- 不要使用 `LiveData`，统一使用 `StateFlow` / `SharedFlow`。
+- 不要在 SSE 回调、网络回调或广播接收器中直接修改 UI 状态。
+- 不要为同一职责复制多个模块实现。
+- 不要让 Tab 页面各自维护一份全局状态副本。
+- 不要在 Compose 页面里实现业务逻辑。
+- 不要为 UI 页面使用 XML 布局。
+- 不要在该应用层使用 Java。
+- 不要实现“容器级刷新”导致小状态变化触发整壳重绘。
+- 不要新建 Module / Repository / DI 文件来“修复”问题，应优先在现有文件内调整；重复 Module 是历史遗留事故，必须避免再次发生。
+
+## 为什么当前结构刻意保持最小化
+
+这个仓库是骨架，而非成品。目标是先建立：
+
+- 一个 Activity
+- 一个共享应用外壳
+- 一个全局状态中枢
+- 每个领域一个仓库契约
+- 一个明确的未来 REST 与 SSE 接入位置
+
+最小化骨架更容易审计，也更不容易在早期被“过度实现”而破坏架构约束。
