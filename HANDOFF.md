@@ -28,13 +28,13 @@
 - API Base URL 仍是占位地址。
 - `DashboardOverviewDto` 含占位文本。
 - Mock 聊天历史为固定示例消息。
-- 四个 Tab 页面与 Dashboard 目前均使用占位内容。
+- 除 Journal 内零花钱账本骨架外，各 Tab 主体与 Dashboard 多为占位内容。
 
 ## 当前刻意未实现的能力
 
 - 历史消息、发送消息、仪表盘总览的真实 REST 请求处理。
 - 真实 SSE 连接管理、重连策略与解析循环。
-- Chat、Journal、Companion、Clio 页面的完整内容 UI。
+- Chat、Journal（零花钱外其他子模块）、Companion、Clio 页面的完整内容 UI。
 - 超出占位路由之外的最终 Dashboard UI 与路由行为。
 - 真实 Token 持久化或鉴权存储。
 - 任何生产级后端集成。
@@ -48,6 +48,59 @@
 - 真实平台连接数据可用后，扩展 `ConnectionRepositoryImpl`。
 - 增加真实 SSE event-source 生命周期管理与重试策略。
 - 将硬编码 Token Provider 替换为基于存储的真实 Provider。
+
+---
+
+## 零花钱账本 API 接口清单
+
+### 数据模型
+
+```json
+Transaction {
+    id: string,
+    amount: float,
+    type: "income" | "expense",
+    incomeCategory: "allowance" | "earning" | "reward" | "interest" | null,
+    expenseCategory: "love" | "daily" | "fine" | null,
+    loveSubCategory: "snack" | "gift" | null,
+    note: string,
+    timestamp: long,
+    balanceAfter: float,
+    requestedByAi: boolean
+}
+
+PocketMoneyConfig {
+    monthlyAllowance: float,
+    annualInterestRate: float
+}
+```
+
+### REST 端点
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/pocket-money/state | 返回 { balance, config } |
+| GET | /api/pocket-money/transactions?start=&end=&limit=&before= | 返回 Transaction[]，按 timestamp 倒序 |
+| POST | /api/pocket-money/transactions | 新增账单，返回含 balanceAfter 的 Transaction |
+| DELETE | /api/pocket-money/transactions/{id} | 删除账单，返回删除后新余额 { balance } |
+| PUT | /api/pocket-money/config | 更新配置，返回 PocketMoneyConfig |
+
+POST body 字段：
+{ amount, type, incomeCategory?, expenseCategory?, loveSubCategory?, note, timestamp, requestedByAi }
+
+PUT body 字段：
+{ monthlyAllowance?, annualInterestRate? }
+
+### 后端定时任务
+
+- 每月1号 00:00 自动入账月度零花钱（incomeCategory: allowance）
+- 每天 00:00 自动计算利息入账（amount = balance × annualInterestRate ÷ 365，incomeCategory: interest）
+
+### Android 接入说明
+
+- 后端就绪后在 core/di/RepositoryModule.kt 将 PocketMoneyRepositoryMock 替换为 PocketMoneyRepositoryImpl
+- PocketMoneyRepositoryImpl 通过 CedarStarApi 调用上述端点
+- SSE status_update 事件里已有 pocketMoney 字段，后端余额变更后推送即可同步顶栏数字
 
 ## 后续需要补做的验证
 

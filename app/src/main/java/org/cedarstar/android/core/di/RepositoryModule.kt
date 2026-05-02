@@ -9,6 +9,8 @@ import org.cedarstar.android.data.repository.ChatRepository
 import org.cedarstar.android.data.repository.ChatRepositoryMock
 import org.cedarstar.android.data.repository.ConnectionRepository
 import org.cedarstar.android.data.repository.ConnectionRepositoryMock
+import org.cedarstar.android.data.repository.PocketMoneyRepository
+import org.cedarstar.android.data.repository.PocketMoneyRepositoryMock
 import org.cedarstar.android.data.repository.StatusRepository
 import org.cedarstar.android.data.repository.StatusRepositoryMock
 
@@ -26,4 +28,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindConnectionRepository(impl: ConnectionRepositoryMock): ConnectionRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPocketMoneyRepository(impl: PocketMoneyRepositoryMock): PocketMoneyRepository
 }
