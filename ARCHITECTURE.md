@@ -69,10 +69,10 @@ SSE / REST  ->  Repository  ->  StateFlow  ->  ViewModel  ->  Composable
 这样数字和表情可以平滑动画，而不会迫使整个外壳重绘。
 
 > 顶栏中的零花钱余额是**只读展示**。零花钱的写权限严格在用户手中：
-> - 用户：充值、扣款、调整月度额度（在 Clio Tab 操作，下月生效）
+> - 用户：在 Journal Tab 零花钱页通过 `AddTransactionSheet` 入账或长按删除，并可点击余额卡片进入 `PocketMoneySettingsScreen` 调整月度额度与年利率（调整下月生效）
 > - 小克：只读 + 表达欲望，通过工具调用 `request_pocket_money(amount, reason)` 发起申请，UI 在 Chat 中渲染审批卡片，等待用户同意后才扣款
 >
-> 月度额度每月 1 号自动重置。
+> 每月 1 号自动入账月度零花钱，每日自动计息入账。
 
 ## 抽屉局部刷新行为
 
@@ -230,10 +230,9 @@ REST 端点：
 - 权限管理子页：
   - 通知 / 无障碍 / 截图 / 麦克风等系统权限集中入口
   - 悬浮窗权限（用于全局截图小球）
-- 零花钱设置子页：
-  - 月度额度调整（**调整下月生效**，不影响本月）
-  - 充值/扣款日志（杉杉的主动操作记录）
 - API token 配置（X-Cedarstar-Token 来源）
+
+> 零花钱的设置入口与流水日志归属在 Journal Tab 的零花钱账本（`PocketMoneyScreen` / `PocketMoneySettingsScreen`），不重复出现在 Clio。
 
 ### 顶部常驻栏（跨 Tab）
 

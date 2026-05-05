@@ -11,17 +11,6 @@
 - `data/repository/StatusRepositoryMock.kt` 若需更丰富动画验证，仍需加入定时更新循环。
 - `ui/components/DramaModeOverlay.kt` 仅为蒙层骨架，真实换皮逻辑（顶栏色调、输入框装饰等）待补。
 
-## 今日进度补丁（2026-05-01）
-
-- Android SDK 已本地安装。
-- `local.properties` 已配置（不入库）。
-- Gradle 配置验证通过（含阿里云镜像兜底）。
-- 当前编译失败原因：缺资源文件 `mipmap/ic_launcher` 和 `style/Theme.CedarStarAndroid`。
-- `Theme.CedarStarAndroid` 应在 `res/values/themes.xml` 创建，父主题 `Theme.Material3.DayNight.NoActionBar`，深色模式版在 `values-night/themes.xml`。
-- 应用图标设计稿已确定（极简卡通三角色：女孩 + 黑狗 + 白猫），原图保存为 `cedarstar_icon_source.png`，待通过 Android Studio Image Asset Studio 接入。
-- 当前阻塞：Image Asset Studio 入口在 Android Studio 中不显示，正在排查（疑似 Gradle sync 未成功导致项目未识别为 Android module）。
-- 完成功能模块映射表（ARCHITECTURE.md），所有 T1-T4 功能已归属到 Chat / Journal / Companion / Clio / 顶栏 / 抽屉 / Dashboard / 全局后台能力 八大模块。
-
 ## 硬编码占位值
 
 - Token Provider 目前返回硬编码 mock token。
@@ -53,25 +42,33 @@
 
 ## 零花钱账本 API 接口清单
 
+字段命名以 `data/model/PocketMoney.kt` 与 `data/repository/PocketMoneyRepository.kt` 为准；以下 JSON 字段名沿用 Kotlin 模型驼峰命名。
+
 ### 数据模型
 
 ```json
 Transaction {
     id: string,
     amount: float,
-    type: "income" | "expense",
-    incomeCategory: "allowance" | "earning" | "reward" | "interest" | null,
-    expenseCategory: "love" | "daily" | "fine" | null,
-    loveSubCategory: "snack" | "gift" | null,
+    type: "INCOME" | "EXPENSE",
+    incomeCategory: "ALLOWANCE" | "EARNING" | "REWARD" | "INTEREST" | null,
+    expenseCategory: "LOVE" | "DAILY" | "FINE" | null,
+    loveSubCategory: "SNACK" | "GIFT" | null,
     note: string,
-    timestamp: long,
-    balanceAfter: float,
+    timestamp: long,           // UTC 毫秒
+    balanceAfter: float,       // 由后端按 timestamp + id 顺序回放计算
     requestedByAi: boolean
 }
 
 PocketMoneyConfig {
     monthlyAllowance: float,
-    annualInterestRate: float
+    annualInterestRate: float  // 0~1 小数（前端按百分比输入，存的是小数）
+}
+
+PocketMoneyState {
+    balance: float,
+    transactions: Transaction[],
+    config: PocketMoneyConfig
 }
 ```
 
@@ -79,32 +76,40 @@ PocketMoneyConfig {
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | /api/pocket-money/state | 返回 { balance, config } |
-| GET | /api/pocket-money/transactions?start=&end=&limit=&before= | 返回 Transaction[]，按 timestamp 倒序 |
-| POST | /api/pocket-money/transactions | 新增账单，返回含 balanceAfter 的 Transaction |
-| DELETE | /api/pocket-money/transactions/{id} | 删除账单，返回删除后新余额 { balance } |
-| PUT | /api/pocket-money/config | 更新配置，返回 PocketMoneyConfig |
+| GET | /api/pocket-money/state | 返回完整 `PocketMoneyState`，对应 `PocketMoneyRepository.state` 的初始化拉取 |
+| GET | /api/pocket-money/transactions?startTime=&endTime= | 返回 Transaction[]，对应 `getTransactions(startTime, endTime)`；区间均为闭区间 UTC 毫秒，可省略；排序由后端约定（前端 UI 自行倒序展示） |
+| POST | /api/pocket-money/transactions | 新增账单，返回含 `balanceAfter` 的 Transaction 以及最新 `balance`（或直接返回 `PocketMoneyState`） |
+| DELETE | /api/pocket-money/transactions/{id} | 删除账单。删除后剩余流水的 `balanceAfter` 需要重算，返回 `{ balance, transactions }` 或完整 `PocketMoneyState` |
+| PUT | /api/pocket-money/config | 更新配置，返回最新 `PocketMoneyConfig` |
 
 POST body 字段：
-{ amount, type, incomeCategory?, expenseCategory?, loveSubCategory?, note, timestamp, requestedByAi }
+{ amount, type, incomeCategory?, expenseCategory?, loveSubCategory?, note, timestamp?, requestedByAi }
+
+- `timestamp` 可省略，缺省取服务器当前时间（对应 Repository 的 `timestampUtcMillis: Long?`）。
+- `type=INCOME` 时填 `incomeCategory`，忽略 `expenseCategory`/`loveSubCategory`。
+- `type=EXPENSE` 时填 `expenseCategory`；`expenseCategory=LOVE` 必须再填 `loveSubCategory`，其他类目应忽略 `loveSubCategory`。
+- `requestedByAi` 默认 false；当前 Mock 始终为 false，AI 申请的入账接口待审批流程定稿后再补。
 
 PUT body 字段：
-{ monthlyAllowance?, annualInterestRate? }
+{ monthlyAllowance, annualInterestRate }
+
+业务规则：调整**下月生效，本月不受影响**（与 `PocketMoneySettingsScreen` 中的提示一致）。即当月已生成的零花钱入账与已计利息不重算，下月 1 日按新值开始计入与计息。
 
 ### 后端定时任务
 
-- 每月1号 00:00 自动入账月度零花钱（incomeCategory: allowance）
-- 每天 00:00 自动计算利息入账（amount = balance × annualInterestRate ÷ 365，incomeCategory: interest）
+- 每月 1 号 00:00 UTC 自动入账月度零花钱：生成一笔 `INCOME / ALLOWANCE`，amount = `monthlyAllowance`。
+- 每日 12:00 UTC 自动计息入账：生成一笔 `INCOME / INTEREST`，amount = `monthlyAllowance × annualInterestRate ÷ 365`，保留 4 位小数（前端按 4 位展示）。
+
+> 当前 `PocketMoneyRepositoryMock` 即按上述规则生成 2026-05 的初始流水。利息计算基数采用 `monthlyAllowance` 而非实时余额，是 Mock 阶段的简化；真实后端如需改为按余额计息或复利，需要同步更新本节并在产品上确认。
 
 ### Android 接入说明
 
-- 后端就绪后在 core/di/RepositoryModule.kt 将 PocketMoneyRepositoryMock 替换为 PocketMoneyRepositoryImpl
-- PocketMoneyRepositoryImpl 通过 CedarStarApi 调用上述端点
-- SSE status_update 事件里已有 pocketMoney 字段，后端余额变更后推送即可同步顶栏数字
+- 后端就绪后在 `core/di/RepositoryModule.kt` 将 `PocketMoneyRepositoryMock` 的绑定替换为 `PocketMoneyRepositoryImpl`。
+- `PocketMoneyRepositoryImpl` 通过 `CedarStarApi`（或新建 `PocketMoneyApi`）调用上述端点，并以 `StateFlow<PocketMoneyState>` 对外暴露。
+- SSE `status_update` 事件里已有 `pocketMoney` 字段（见 `core/sse/SseEvent.kt`），后端余额变更后推送即可同步顶栏数字；流水列表的实时同步暂未走 SSE，由 ViewModel 在写操作完成后刷新。
 
 ## 后续需要补做的验证
 
-- 本机安装 Android SDK 后，执行一次真实 Android 构建。
 - 在真机/模拟器上验证顶部栏动画时序。
 - 使用 mock 或真实 SSE 事件验证抽屉连接指示器刷新。
 - 验证 Dashboard 弹层路由与返回行为。
