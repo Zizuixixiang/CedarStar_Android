@@ -97,10 +97,8 @@ PUT body 字段：
 
 ### 后端定时任务
 
-- 每月 1 号 00:00 UTC 自动入账月度零花钱：生成一笔 `INCOME / ALLOWANCE`，amount = `monthlyAllowance`。
-- 每日 12:00 UTC 自动计息入账：生成一笔 `INCOME / INTEREST`，amount = `monthlyAllowance × annualInterestRate ÷ 365`，保留 4 位小数（前端按 4 位展示）。
-
-> 当前 `PocketMoneyRepositoryMock` 即按上述规则生成 2026-05 的初始流水。利息计算基数采用 `monthlyAllowance` 而非实时余额，是 Mock 阶段的简化；真实后端如需改为按余额计息或复利，需要同步更新本节并在产品上确认。
+- 每月 1 号 00:00 东八区自动入账月度零花钱：生成一笔 `INCOME / ALLOWANCE`，amount = `monthlyAllowance`。
+- 每日 00:00 东八区自动计息入账：生成一笔 `INCOME / INTEREST`，amount = `balance × annualInterestRate ÷ 365`，金额向下取整到分（0.01）。
 
 ### Android 接入说明
 
